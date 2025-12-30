@@ -278,7 +278,7 @@
 		document.addEventListener('DOMContentLoaded', () => {
 			modal = new bootstrap.Modal(document.getElementById('purchaseModal'));
 
-			calendar = new FullCalendar.Calendar(document.getElementById('calendar'), {
+			calendar = new FullCalendar.Calendar(el, {
 			  locale: 'ko',
 			  initialView: window.innerWidth < 768 ? 'listWeek' : 'dayGridMonth',
 			  headerToolbar: {

@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.web.coffee.mapper.CoffeeMapper">
+
+    <resultMap id="CoffeeMap" type="com.web.coffee.domain.CoffeeDTO">
+        <id     column="WORK_DATE"  property="workDate"/>
+        <result column="MEMBER_ID"  property="memberId"/>
+        <result column="CREATED_AT" property="createdAt"/>
+        <result column="UPDATED_AT" property="updatedAt"/>
+        
+        <result column="NAME"       property="name"/>
+        <result column="JOB_TITLE"  property="jobTitle"/>
+    </resultMap>
+	
+	<select id="allCoffeeList" resultMap="CoffeeMap">
+	<![CDATA[ 
+		SELECT c.WORK_DATE
+			 , c.MEMBER_ID
+			 , m.NAME
+			 , m.JOB_TITLE
+		 FROM COFFEE_PURCHASE c
+		 JOIN COFFEE_MEMBER m 
+		   ON c.MEMBER_ID = m.MEMBER_ID
+		WHERE TO_DATE(c.WORK_DATE, 'YYYY-MM-DD') >= TO_DATE(#{startDate}, 'YYYY-MM-DD')
+  		  AND TO_DATE(c.WORK_DATE, 'YYYY-MM-DD') <  TO_DATE(#{endDate}, 'YYYY-MM-DD')
+  	]]>
+	</select>
+	
+	<select id="retrieveDateYn" resultType="java.lang.String">
+		SELECT CASE WHEN ( COUNT(*) > 0 ) THEN 'Y' ELSE 'N' END AS resultCd
+		  FROM COFFEE_PURCHASE a
+		 WHERE a.WORK_DATE = #{workDate}
+	</select>
+	
+	<delete id="deleteCoffeeDate">
+		DELETE FROM COFFEE_PURCHASE
+		WHERE WORK_DATE = #{workDate}
+	</delete>
+	
+	<update id="updateCoffeeDate">
+		UPDATE COFFEE_PURCHASE
+		   SET WORK_DATE  = #{coffeeDTO.workDate}
+		     , MEMBER_ID  = #{coffeeDTO.memberId}
+		     , UPDATED_AT = #{coffeeDTO.updatedAt}
+		 WHERE MEMBER_ID  = #{coffeeDTO.memberId}
+	</update>
+	
+	<insert id="insertCoffeeDate">
+		INSERT INTO COFFEE_PURCHASE
+		VALUES (
+				#{coffeeDTO.workDate}
+			  , #{coffeeDTO.memberId}
+			  , #{coffeeDTO.createdAt}
+			  , #{coffeeDTO.updatedAt}
+		)
+	</insert>
+	
+</mapper>
