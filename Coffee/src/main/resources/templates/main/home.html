@@ -278,16 +278,14 @@
 		document.addEventListener('DOMContentLoaded', () => {
 			modal = new bootstrap.Modal(document.getElementById('purchaseModal'));
 
-			calendar = new FullCalendar.Calendar(document.getElementById('calendar'), {
-				locale: 'ko',
-				//initialView: 'dayGridMonth',
-				initialView: window.innerWidth < 768 ? 'dayGridWeek' : 'dayGridMonth',
-				height: 'auto',
-				headerToolbar: {
-					left: 'prev,next today',
-					center: 'title',
-					right: ''
-				},
+			calendar = new FullCalendar.Calendar(el, {
+			  locale: 'ko',
+			  initialView: window.innerWidth < 768 ? 'listWeek' : 'dayGridMonth',
+			  headerToolbar: {
+			    left: 'prev,next today',
+			    center: 'title',
+			    right: ''
+			  },
 
 				events: async (info, success) => {
 					const list = await fetchJson(
