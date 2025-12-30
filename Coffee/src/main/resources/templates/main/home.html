@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>커피 달력</title>
+
+	<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+	<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.20/index.global.min.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.20/locales-all.global.min.js"></script>
+
+	<style>
+		:root {
+			--card-radius: 18px;
+			--soft-border: rgba(0, 0, 0, .08);
+			--soft-bg: rgba(255, 255, 255, .78);
+		}
+
+		body {
+			background: #f6f7fb;
+		}
+
+		.glass-card {
+			border-radius: var(--card-radius);
+			border: 1px solid var(--soft-border);
+			background: var(--soft-bg);
+			backdrop-filter: blur(8px);
+			box-shadow: 0 12px 28px rgba(0, 0, 0, .08);
+		}
+
+		#calendar {
+			min-height: 720px;
+		}
+
+		.member-grid {
+			display: grid;
+			grid-template-columns: repeat(2, 1fr);
+			gap: .5rem;
+		}
+
+		.member-btn {
+			border-radius: 14px;
+			padding: .6rem .8rem;
+			border: 1px solid rgba(0, 0, 0, .1);
+			background: #fff;
+			text-align: left;
+		}
+
+		.member-btn.active {
+			background: #212529;
+			color: #fff;
+			border-color: #212529;
+		}
+
+		.member-name {
+			font-weight: 700;
+		}
+
+		.member-title {
+			font-size: .85rem;
+			opacity: .7;
+		}
+	</style>
+</head>
+
+<body>
+	<main class="container py-4">
+		<div class="d-flex gap-2 mb-3">
+		  <button class="btn btn-primary btn-sm" id="openAddMember">
+		    추가
+		  </button>
+		  <button class="btn btn-outline-secondary btn-sm" id="openActiveMember">
+		    관리
+		  </button>
+		</div>
+
+		<div class="position-relative glass-card p-4">
+			<div id="calendar"></div>
+		</div>
+	</main>
+
+	<div class="modal fade" id="purchaseModal" tabindex="-1">
+		<div class="modal-dialog modal-dialog-centered modal-lg">
+			<div class="modal-content" style="border-radius:18px">
+				<div class="modal-header">
+					<h5 class="modal-title">구매자 선택</h5>
+					<button class="btn-close" data-bs-dismiss="modal"></button>
+				</div>
+
+				<div class="modal-body">
+					<div class="row g-3">
+						<div class="col-md-4">
+							<label class="form-label">날짜</label>
+							<input id="workDate" class="form-control" readonly>
+
+							<div class="mt-3">
+								<div class="text-muted small">현재 기록</div>
+								<div class="fw-bold fs-5" id="currentBuyerText"></div>
+							</div>
+							
+							<div class="mt-3">
+							    <button class="btn btn-outline-danger w-100" id="btnDelete">기록 삭제</button>
+							</div>
+						</div>
+
+						<div class="col-md-8">
+							<div id="memberButtons" class="member-grid"></div>
+						</div>
+					</div>
+				</div>
+
+				<div class="modal-footer">
+					<button class="btn btn-outline-secondary" data-bs-dismiss="modal">닫기</button>
+				</div>
+			</div>
+		</div>
+	</div>
+	
+	<div class="modal fade" id="memberAddModal" tabindex="-1">
+	  <div class="modal-dialog modal-dialog-centered">
+	    <div class="modal-content" style="border-radius:18px">
+	      <div class="modal-header">
+	        <h5 class="modal-title">추가</h5>
+	        <button class="btn-close" data-bs-dismiss="modal"></button>
+	      </div>
+	      <div class="modal-body">
+	        <div class="mb-3">
+	          <label class="form-label">이름</label>
+	          <input id="newMemberName" class="form-control">
+	        </div>
+	        <div class="mb-3">
+	          <label class="form-label">직책</label>
+	          <input id="newMemberJob" class="form-control">
+	        </div>
+	      </div>
+	      <div class="modal-footer">
+	        <button class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+	        <button class="btn btn-primary" id="addMemberBtn">추가</button>
+	      </div>
+	    </div>
+	  </div>
+	</div>
+	
+	<div class="modal fade" id="memberActiveModal" tabindex="-1">
+	  <div class="modal-dialog modal-dialog-centered modal-lg">
+	    <div class="modal-content" style="border-radius:18px">
+	      <div class="modal-header">
+	        <h5 class="modal-title">활성/비활성</h5>
+	        <button class="btn-close" data-bs-dismiss="modal"></button>
+	      </div>
+	      <div class="modal-body">
+	        <div id="memberActiveButtons" class="member-grid"></div>
+	      </div>
+	    </div>
+	  </div>
+	</div>
+
+
+
+	<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+	<script>
+		const API = {
+			events: '/api/coffee/calendar/events',
+			members: '/api/coffee/members/active',
+			allMembers: '/api/coffee/members/all',
+			upsert: '/api/coffee/calendar/purchase'
+		};
+
+		let calendar;
+		let modal;
+		let membersCache = null;
+
+		const colorPool = [
+			'#ff6b6b', '#4dabf7', '#51cf66', '#ffd43b',
+			'#9775fa', '#ffa94d', '#20c997', '#868e96'
+		];
+		const memberColorMap = {};
+
+		function getColor(memberId) {
+			if (!memberColorMap[memberId]) {
+				const idx = Object.keys(memberColorMap).length % colorPool.length;
+				memberColorMap[memberId] = colorPool[idx];
+			}
+			return memberColorMap[memberId];
+		}
+
+		async function fetchJson(url) {
+			const res = await fetch(url);
+			if (!res.ok) throw new Error(res.status);
+			return res.json();
+		}
+
+		async function loadActiveMembers() {
+			const wrap = document.getElementById('memberButtons');
+			wrap.innerHTML = '';
+						
+			membersCache = await fetchJson(API.members);
+			return membersCache;
+		}
+		
+		async function loadMembers() {
+			const wrap = document.getElementById('memberActiveButtons');
+			wrap.innerHTML = '';
+			
+			membersCache = await fetchJson(API.allMembers);
+
+			return membersCache;
+		}
+		
+		async function deletePurchase() {
+			const workDate = document.getElementById('workDate').value;
+			
+			if (!workDate) {
+			  alert('삭제할 날짜가 없습니다.');
+			  return;
+			}
+			
+			await fetch('/api/coffee/calendar/delete', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					workDate: workDate
+				})
+			});
+			
+			location.reload();
+		}
+
+		function renderMembers(selectedId) {
+			const wrap = document.getElementById('memberButtons');
+			wrap.innerHTML = '';
+
+			membersCache.forEach(m => {
+				const btn = document.createElement('button');
+				btn.type = 'button';
+				btn.className = 'member-btn';
+				if (selectedId === m.memberId) btn.classList.add('active');
+
+				btn.innerHTML = `
+					<div class="member-name">${m.name}</div>
+					<div class="member-title">${m.jobTitle}</div>
+				`;
+
+				btn.onclick = async () => {
+					await fetch(API.upsert, {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({
+							workDate: document.getElementById('workDate').value,
+							memberId: m.memberId
+						})
+					});
+					location.reload();
+				};
+
+				wrap.appendChild(btn);
+			});
+		}
+
+		function openModal(dateStr, event) {
+			document.getElementById('workDate').value = dateStr;
+
+			if (event) {
+				document.getElementById('currentBuyerText').textContent =
+					event.extendedProps.name + ' ' + event.extendedProps.jobTitle;
+			} else {
+				document.getElementById('currentBuyerText').textContent = '미등록';
+			}
+
+			modal.show();
+			loadActiveMembers().then(() =>
+				renderMembers(event?.extendedProps?.memberId ?? null)
+			);
+		}
+
+		document.addEventListener('DOMContentLoaded', () => {
+			modal = new bootstrap.Modal(document.getElementById('purchaseModal'));
+
+			calendar = new FullCalendar.Calendar(document.getElementById('calendar'), {
+				locale: 'ko',
+				//initialView: 'dayGridMonth',
+				initialView: window.innerWidth < 768 ? 'dayGridWeek' : 'dayGridMonth',
+				height: 'auto',
+				headerToolbar: {
+					left: 'prev,next today',
+					center: 'title',
+					right: ''
+				},
+
+				events: async (info, success) => {
+					const list = await fetchJson(
+						`${API.events}?start=${info.startStr}&end=${info.endStr}`
+					);
+
+					const events = list.map(e => ({
+						title: e.name + ' ' + e.jobTitle,
+						start: e.workDate,
+						allDay: true,
+						backgroundColor: getColor(e.memberId),
+						borderColor: getColor(e.memberId),
+						extendedProps: e
+					}));
+
+					success(events);
+				},
+
+				navLinks: false,
+				dateClick: info => {
+				  const clickedDate = info.dateStr;
+
+				  const events = calendar.getEvents();
+
+				  const matchedEvent = events.find(e =>
+				    e.startStr.substring(0, 10) === clickedDate
+				  );
+
+				  openModal(clickedDate, matchedEvent ?? null);
+				},
+				eventClick: info =>
+					openModal(info.event.startStr.substring(0, 10), info.event)
+			});
+
+			calendar.render();
+		});
+		
+		const memberAddModal = new bootstrap.Modal(
+		  document.getElementById('memberAddModal')
+		);
+
+		document.getElementById('addMemberBtn').onclick = async () => {
+		  await fetch('/api/coffee/new/members', {
+		    method: 'POST',
+		    headers: { 'Content-Type': 'application/json' },
+		    body: JSON.stringify({
+		      name: document.getElementById('newMemberName').value,
+		      jobTitle: document.getElementById('newMemberJob').value
+		    })
+		  });
+		  membersCache = null;
+		  memberAddModal.hide();
+		};
+		
+		function renderActiveToggle() {
+		  const wrap = document.getElementById('memberActiveButtons');
+		  wrap.innerHTML = '';
+
+		  membersCache.forEach(m => {
+		    const btn = document.createElement('button');
+		    btn.className = 'member-btn ' + (m.active ? 'active' : '');
+		    btn.innerHTML = `
+		      <div class="member-name">${m.name}</div>
+		      <div class="member-title">${m.jobTitle}</div>
+		    `;
+
+		    btn.onclick = async () => {
+		      await fetch(`/api/coffee/members/${m.memberId}/active`, {
+		        method: 'POST',
+		        headers: { 'Content-Type': 'application/json' },
+		        body: JSON.stringify({ active: !m.active })
+		      });
+		      membersCache = null;
+		      location.reload();
+		    };
+
+		    wrap.appendChild(btn);
+		  });
+		}
+
+		
+		const memberActiveModal = new bootstrap.Modal(
+		  document.getElementById('memberActiveModal')
+		);
+
+		document.getElementById('openAddMember').onclick = () => {
+		  memberAddModal.show();
+		};
+
+		document.getElementById('openActiveMember').onclick = async () => {
+		  await loadMembers();
+		  renderActiveToggle();
+		  memberActiveModal.show();
+		};
+		
+		document.getElementById('btnDelete').addEventListener('click', deletePurchase);
+	</script>
+
+
+</body>
+
+</html>
